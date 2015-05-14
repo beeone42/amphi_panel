@@ -1,0 +1,34 @@
+Kramer VP-771:
+
+/dev/ttyUSB0
+115200 8N1
+pas de control ni hard ni soft
+
+touche MENU:
+SEND: #y 0,10,0
+RECV: ~01@Y 0,10,0 OK
+
+touche MENU:
+SEND: #y 0,10,0
+RECV: ~01@Y 0,10,0 OK
+
+touche VGA1:
+SEND: #y 0,21,0
+RECV: ~01@Y 0,21,0 OK
+RECV: ~01@Y 0,120,11,0
+RECV: ~01@Y 0,710,245,0
+
+ou directement
+
+#y 0,120,11,0
+~01@Y 0,120,11,0 OK
+~01@Y 0,710,245,0
+
+etc...
+
+VGA1  : 21
+VGA2  : 22
+HDMI1: 23
+HDMI2: 24
+SDI    : 27
+

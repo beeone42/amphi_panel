@@ -7,6 +7,19 @@ BOUNCE=500
 gpio_buttonid = {18:1, 23:2, 24:3, 4:4, 17:5, 21:6, 22:7}
 buttonid_name = {1:"OFF", 2:"ON", 3:"HDMI2", 4:"HDMI1", 5:"VGA2", 6:"VGA1", 7:"SDI"}
 
+name_command = {"ON"   : "00!",
+                "OFF"  : "00\"",
+                "HDMI1": "#y 0,120,23",
+                "HDMI2": "#y 0,120,24",
+                "VGA1" : "#y 0,120,21",
+                "VGA2" : "#y 0,120,22",
+                "SDI"  : "#y 0,120,27"
+                }
+
+ports = {"VIDEOPROJ" : "/dev/ttyUSB1",
+         "KRAMER"    : "/dev/ttyUSB0"}
+
+
 
 GPIO.setmode(GPIO.BCM)
 
