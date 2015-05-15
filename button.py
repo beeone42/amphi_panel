@@ -1,41 +1,100 @@
 #!/usr/bin/env python
 
 import RPi.GPIO as GPIO
+import time
+import serial
+
 
 BOUNCE=500
 
 gpio_buttonid = {18:1, 23:2, 24:3, 4:4, 17:5, 21:6, 22:7}
 buttonid_name = {1:"OFF", 2:"ON", 3:"HDMI2", 4:"HDMI1", 5:"VGA2", 6:"VGA1", 7:"SDI"}
 
-name_command = {"ON"   : "00!",
-                "OFF"  : "00\"",
-                "HDMI1": "#y 0,120,23",
-                "HDMI2": "#y 0,120,24",
-                "VGA1" : "#y 0,120,21",
-                "VGA2" : "#y 0,120,22",
-                "SDI"  : "#y 0,120,27"
+name_command = {"ON"   : ["VIDEOPROJ", "00!"],
+                "OFF"  : ["VIDEOPROJ", "00\""],
+                "HDMI1": ["KRAMER",    "#y 0,120,13"],
+                "HDMI2": ["KRAMER",    "#y 0,120,14"],
+                "VGA1" : ["KRAMER",    "#y 0,120,11"],
+                "VGA2" : ["KRAMER",    "#y 0,120,12"],
+                "SDI"  : ["KRAMER",    "#y 0,120,17"]
                 }
 
-ports = {"VIDEOPROJ" : "/dev/ttyUSB1",
-         "KRAMER"    : "/dev/ttyUSB0"}
+ports = {}
+ports["KRAMER"] = serial.Serial(
+    port='/dev/ttyUSB0',
+    baudrate=115200,
+    bytesize=serial.EIGHTBITS,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+    xonxoff = False,
+    rtscts = False,
+    dsrdtr = False,
+    timeout = 2,
+    writeTimeout = 2
+    )
 
+ports["VIDEOPROJ"] = serial.Serial(
+    port='/dev/ttyUSB1',
+    baudrate=9600,
+    bytesize=serial.EIGHTBITS,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+    xonxoff = False,
+    rtscts = False,
+    dsrdtr = False,
+    timeout = 2,
+    writeTimeout = 2
+    )
 
 
 GPIO.setmode(GPIO.BCM)
 
-def my_callback(channel):
-    global gpio_buttonid, buttonid_name
-    print "event on channel " + str(channel)
-    print "button number: " + str(gpio_buttonid[channel])
-    print "button name  : " + buttonid_name[gpio_buttonid[channel]]
+def send_command(ser, cmd):
+    try:
+        print "Opening serial port " + ser.port
+        ser.open()
+    except Exception, e:
+        print "error open serial port: " + str(e)
 
+    if ser.isOpen():
+        try:
+            ser.flushInput()
+            ser.flushOutput()
+            print "sending data..."
+            ser.write(cmd)
+            print "sent"
+            time.sleep(0.1)
+            print "reading answer..."
+            response = ser.readline()
+            print("read data: " + response)
+            ser.close()
+        except Exception, e1:
+            print "error communicating...: " + str(e1)
+    else:
+        print "cannot open serial port "
+
+def my_callback(channel):
+    global gpio_buttonid, buttonid_name, name_command, ports
+
+    btn_id = gpio_buttonid[channel]
+    btn_name = buttonid_name[btn_id]
+    btn_device = name_command[btn_name][0]
+    btn_cmd = name_command[btn_name][1]
+    print "event on channel " + str(channel)
+    print "button number: " + str(btn_id)
+    print "button name  : " + btn_name
+    print "sending '" + btn_cmd + "' to '" + btn_device + "'"
+    #send_command(ports[btn_device], btn_cmd)
+    
 for k in gpio_buttonid.keys():
     print "setting up button #" + str(k) + " (" +  str(gpio_buttonid[k]) + ":" + buttonid_name[gpio_buttonid[k]] + ")"
     GPIO.setup(k, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.add_event_detect(k, GPIO.FALLING, callback=my_callback, bouncetime=BOUNCE)
 
 try:
-    raw_input("Waiting...\n")
+    test = raw_input("Waiting...\n")
+    my_callback(int(test))
+
 except KeyboardInterrupt:
     pass
 
