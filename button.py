@@ -66,7 +66,7 @@ def send_command(ser, cmd):
             ser.flushInput()
             ser.flushOutput()
             print "sending data..."
-            ser.write(cmd + "\n")
+            ser.write(cmd + "\r")
             print "sent"
             time.sleep(0.1)
             print "reading answer..."
