@@ -3,12 +3,10 @@
 import RPi.GPIO as GPIO
 import time
 import serial
+import thread
 
-LOCK=False
-BOUNCE=1000
-
-#gpio_buttonid = {18:1, 23:2, 24:3, 4:4, 17:5, 21:6, 22:7}
-#buttonid_name = {1:"OFF", 2:"ON", 3:"HDMI2", 4:"HDMI1", 5:"VGA2", 6:"VGA1", 7:"SDI"}
+LOCK = thread.allocate_lock()
+BOUNCE = 1000
 
 gpio_button = {23:"ON",    18:"OFF",
                22:"HDMI1", 24:"HDMI2",
@@ -51,12 +49,14 @@ ports["VIDEOPROJ"] = serial.Serial(
     writeTimeout = 2
     )
 
+queue = []
+
 
 GPIO.setmode(GPIO.BCM)
 
-def send_command(ser, cmd):
+def send_command(dev, cmd):
+    ser = ports[dev]
     try:
-        print "Opening serial port " + ser.port
         ser.open()
     except Exception, e:
         print "error open serial port: " + str(e)
@@ -65,7 +65,7 @@ def send_command(ser, cmd):
         try:
             ser.flushInput()
             ser.flushOutput()
-            print "sending data..."
+            print "sending " + cmd + " to " + dev
             ser.write(cmd + "\r")
             print "sent"
             time.sleep(0.1)
@@ -76,29 +76,23 @@ def send_command(ser, cmd):
         except Exception, e1:
             print "error communicating...: " + str(e1)
     else:
-        print "cannot open serial port "
+        print "cannot open serial port " + ser.port
 
 def my_callback(channel):
     global gpio_button, name_command, ports, LOCK
 
-
-    if (LOCK):
+    if (LOCK.acquire(0) == False):
         print "bounce!"
         return
-    LOCK=True
-
-#    btn_id = gpio_buttonid[channel]
-#    btn_name = buttonid_name[btn_id]
 
     btn_name = gpio_button[channel]
     btn_device = name_command[btn_name][0]
     btn_cmd = name_command[btn_name][1]
     print "event on channel " + str(channel)
-#    print "button number: " + str(btn_id)
     print "button name  : " + btn_name
     print "sending '" + btn_cmd + "' to '" + btn_device + "'"
-    send_command(ports[btn_device], btn_cmd)
-    LOCK=False
+    queue.append({"dev": btn_device, "cmd": btn_cmd})
+    LOCK.release()
 
 for k in gpio_button.keys():
     print "setting up button #" + str(k) + " (" +  gpio_button[k] + ")"
@@ -106,9 +100,15 @@ for k in gpio_button.keys():
     GPIO.add_event_detect(k, GPIO.FALLING, callback=my_callback, bouncetime=BOUNCE)
 
 try:
-    test = raw_input("Waiting...\n")
-    my_callback(int(test))
-
+    while (True):
+#        test = raw_input("Waiting...\n")
+#        my_callback(int(test))
+        if (len(queue) > 0):
+            LOCK.acquire(True)
+            todo = queue.pop()
+            LOCK.release()
+            send_command(todo["dev"], todo["cmd"])
+        time.sleep(0.1)
 except KeyboardInterrupt:
     pass
 
