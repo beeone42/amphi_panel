@@ -78,8 +78,6 @@ def led_black():
     GPIO.output(GREEN, False)
 
 def led(l):
-    print("changing led")
-    print(l)
     if (l == "G"):
         led_green()
     else:
@@ -147,13 +145,13 @@ def send_command(dev, cmd):
         try:
             ser.flushInput()
             ser.flushOutput()
-            print "sending " + cmd + " to " + dev
+            print "SERIAL: sending " + cmd + " to " + dev
             ser.write(cmd + "\r")
-            print "sent"
+            print "SERIAL: sent"
             time.sleep(0.1)
-            print "reading answer..."
+            print "SERIAL: reading answer..."
             response = ser.readline()
-            print("read data: " + response)
+            print("SERIAL: read data: " + response)
             ser.close()
             return (response)
         except Exception, e1:
@@ -192,7 +190,6 @@ GPIO.setup(RED, GPIO.OUT)
 GPIO.setup(GREEN, GPIO.OUT)
 GPIO.output(RED, False)
 GPIO.output(GREEN, False)
-
 
 for k in gpio_button.keys():
     print "setting up button #" + str(k) + " (" +  gpio_button[k] + ")"
