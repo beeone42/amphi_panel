@@ -2,6 +2,7 @@
 
 import RPi.GPIO as GPIO
 import time
+import datetime
 import serial
 import thread
 #import threading
@@ -29,7 +30,8 @@ name_command = {"ON"   : ["VIDEOPROJ", "00!"],
 
 ports = {}
 ports["KRAMER"] = serial.Serial(
-    port='/dev/ttyUSB1',
+    port='/dev/serial/by-path/platform-bcm2708_usb-usb-0:1.3:1.0-port0',
+#    port='/dev/ttyUSB1',
     baudrate=115200,
     bytesize=serial.EIGHTBITS,
     parity=serial.PARITY_NONE,
@@ -42,7 +44,8 @@ ports["KRAMER"] = serial.Serial(
     )
 
 ports["VIDEOPROJ"] = serial.Serial(
-    port='/dev/ttyUSB0',
+    port='/dev/serial/by-path/platform-bcm2708_usb-usb-0:1.2:1.0-port0',
+#    port='/dev/ttyUSB0',
     baudrate=9600,
     bytesize=serial.EIGHTBITS,
     parity=serial.PARITY_NONE,
@@ -58,35 +61,80 @@ queue = []
 
 GPIO.setmode(GPIO.BCM)
 
-def videoproj_on():
-    print "starting videoproj, 60 sec please"
+def led_red():
+    GPIO.output(RED, True)
+    GPIO.output(GREEN, False)
+
+def led_green():
     GPIO.output(RED, False)
-    for i in range(0, 60):
-        if (i % 2):
-            GPIO.output(GREEN, True)
-            print "G"
+    GPIO.output(GREEN, True)
+
+def led_orange():
+    GPIO.output(RED, True)
+    GPIO.output(GREEN, True)
+
+def led_black():
+    GPIO.output(RED, False)
+    GPIO.output(GREEN, False)
+
+def led(l):
+    print("changing led")
+    print(l)
+    if (l == "G"):
+        led_green()
+    else:
+        if (l == "R"):
+            led_red()
         else:
-            GPIO.output(GREEN, False)
+            led_black()
+
+def cmd_failed():
+    for i in range(0, 10):
+        if (i % 2):
+            led_black()
+        else:
+            led_red()
+        time.sleep(0.2)
+
+
+def videoproj_change_state(cmd, l, t):
+    led(l)
+    print("Checking VIDEOPROJ powering status")
+    rep = send_command("VIDEOPROJ", "00vPK").strip()
+    if (rep == "00vPK0"):
+        print("Cannot change VIDEOPROJ status now")
+        cmd_failed()
+        check_videoproj()
+        VLOCK.release()
+        return
+
+    rep = send_command("VIDEOPROJ", cmd).strip()
+    if (rep != cmd):
+        print("Command failed")
+        cmd_failed()
+        check_videoproj()
+        VLOCK.release()
+        return
+        
+    for i in range(0, t):
+        if (i % 2):
+            led(l)
+            print l
+        else:
+            led_black()
             print "."
         time.sleep(1)
     print "Done!"
-    GPIO.output(GREEN, True)
+    led(l)
     VLOCK.release()
 
-def videoproj_off():
+def videoproj_on(cmd):
+    print "starting videoproj, 60 sec please"
+    videoproj_change_state(cmd, "G", 60)
+
+def videoproj_off(cmd):
     print "stopping videoproj, 120 sec please"
-    GPIO.output(GREEN, False)
-    for i in range(0, 120):
-        if (i % 2):
-            GPIO.output(RED, True)
-            print "R"
-        else:
-            GPIO.output(RED, False)
-            print "."
-        time.sleep(1)
-    print "Done!"
-    GPIO.output(RED, True)
-    VLOCK.release()
+    videoproj_change_state(cmd, "R", 120)
 
 def send_command(dev, cmd):
     ser = ports[dev]
@@ -107,6 +155,7 @@ def send_command(dev, cmd):
             response = ser.readline()
             print("read data: " + response)
             ser.close()
+            return (response)
         except Exception, e1:
             print "error communicating...: " + str(e1)
     else:
@@ -128,6 +177,17 @@ def my_callback(channel):
     queue.append({"dev": btn_device, "cmd": btn_cmd, "btn": btn_name})
     LOCK.release()
 
+def check_videoproj():
+    led_orange()
+    print("Checking VIDEOPROJ status")
+    rep = send_command("VIDEOPROJ", "00vP").strip()
+    if (rep == "00vP0"):
+        print("VP is OFF --> RED")
+        led_red()
+    if (rep == "00vP1"):
+        print("VP is ON --> GREEN")
+        led_green()
+
 GPIO.setup(RED, GPIO.OUT)
 GPIO.setup(GREEN, GPIO.OUT)
 GPIO.output(RED, False)
@@ -140,22 +200,24 @@ for k in gpio_button.keys():
     GPIO.add_event_detect(k, GPIO.FALLING, callback=my_callback, bouncetime=BOUNCE)
 
 try:
-    test = raw_input("Waiting...\n")
-    my_callback(int(test))
+
+    check_videoproj()
+#    test = raw_input("Waiting...\n")
+#    my_callback(int(test))
+
     while (True):
         if (len(queue) > 0):
+            i = datetime.datetime.now()
+            print(i)
             LOCK.acquire(True)
             todo = queue.pop()
             if (todo["dev"] == "VIDEOPROJ"):
                 VLOCK.acquire(True)
-                send_command(todo["dev"], todo["cmd"])
                 if (todo["btn"] == "ON"):
-                    videoproj_on()
-                    #w = threading.Thread(target=videoproj_on)
+                    videoproj_on(todo["cmd"])
                 else:
-                    videoproj_off()
-                    #w = threading.Thread(target=videoproj_off)
-                #w.start()
+                    videoproj_off(todo["cmd"])
+                check_videoproj()
             else:
                 send_command(todo["dev"], todo["cmd"])
             LOCK.release()
